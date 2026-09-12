@@ -56,7 +56,8 @@ public final class PersistenceApiDtos {
             Boolean outOfBound,
             String offerStatus,
             String errorSummary,
-            String rawOfferBlobId
+            String rawOfferBlobId,
+            String fundsJson
     ) {}
 
     public record OfferResponse(
@@ -72,7 +73,8 @@ public final class PersistenceApiDtos {
             String offerStatus,
             String errorSummary,
             String rawOfferBlobId,
-            Instant createdAt
+            Instant createdAt,
+            String fundsJson
     ) {}
 
     public record CreatePaymentSessionRequest(

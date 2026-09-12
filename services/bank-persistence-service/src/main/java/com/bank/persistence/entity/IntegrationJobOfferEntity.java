@@ -55,6 +55,10 @@ public class IntegrationJobOfferEntity {
     @Column(name = "raw_offer_blob_id", length = 36)
     private String rawOfferBlobId;
 
+    /** JSON array of bank {@code FundAllocation} rows; null when the offer has no funds. */
+    @Column(name = "funds_json")
+    private String fundsJson;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 }

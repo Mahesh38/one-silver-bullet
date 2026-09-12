@@ -204,6 +204,31 @@ class JobApiTest {
     }
 
     @Test
+    void addOffer_persistsFundsJson() throws Exception {
+        String jobId = createJob("idem-job-funds-" + UUID.randomUUID());
+        String offerId = UUID.randomUUID().toString();
+
+        mockMvc.perform(post("/internal/v1/jobs/{jobId}/offers", jobId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "offerId": "%s",
+                                  "insurerCode": "BALIC",
+                                  "productCode": "301",
+                                  "offerStatus": "AVAILABLE",
+                                  "fundsJson": "[{\\"code\\":\\"EQ1\\",\\"name\\":\\"Equity\\",\\"allocationPercent\\":60}]"
+                                }
+                                """.formatted(offerId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.offerId", is(offerId)))
+                .andExpect(jsonPath("$.fundsJson", org.hamcrest.Matchers.containsString("EQ1")));
+
+        mockMvc.perform(get("/internal/v1/jobs/{jobId}/offers", jobId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].fundsJson", org.hamcrest.Matchers.containsString("EQ1")));
+    }
+
+    @Test
     void addOffer_missingJob_returns404_withResourceNotFound() throws Exception {
         mockMvc.perform(post("/internal/v1/jobs/{jobId}/offers", "missing-offer-job")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -4,6 +4,7 @@ import com.bank.common.domain.Lob;
 import com.bank.common.secrets.SecretProvider;
 import com.bank.insurance.onesb.domain.command.CreateQuoteCommand;
 import com.bank.insurance.onesb.lob.LobQuoteHandler;
+import com.bank.insurance.onesb.lob.life.LifeEligibilitySupport;
 import com.bank.insurance.onesb.lob.life.LifeQuotePayloadFactory;
 import com.bank.insurance.onesb.lob.life.payload.LifeQuoteRequest;
 import org.springframework.stereotype.Component;
@@ -48,5 +49,10 @@ public class TermQuoteHandler implements LobQuoteHandler {
     @Override
     public String pollPath(String externalReqId) {
         return POLL_PATH_PREFIX + externalReqId;
+    }
+
+    @Override
+    public String criteriaPath(String productCode, String manufacturerId) {
+        return LifeEligibilitySupport.criteriaPath(SUBMIT_PATH, productCode, manufacturerId);
     }
 }

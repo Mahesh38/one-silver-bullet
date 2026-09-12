@@ -123,6 +123,28 @@ class QuoteServiceTest {
         verify(termHandler, never()).buildSubmitPayload(any());
     }
 
+    @Test
+    @Tag("FUNC-022")
+    void createQuote_singleWithoutPin_throws422_noUpstreamCall() {
+        CreateQuoteCommand command = new CreateQuoteCommand(
+                Lob.TERM, "SINGLE", null, new BigDecimal("5000000"), null,
+                List.of(new CreateQuoteCommand.MemberDetail(
+                        "LIFE_ASSURED", 1, "1990-01-15", "M", false, null, null)),
+                null, null, "j-1", null, "idem-1", "actor-1"
+        );
+
+        assertThatThrownBy(() -> quoteService.createQuote(command))
+                .isInstanceOf(ServiceException.class)
+                .satisfies(ex -> {
+                    ServiceException se = (ServiceException) ex;
+                    assertThat(se.getHttpStatus()).isEqualTo(422);
+                    assertThat(se.getErrorResponse().getCode()).isEqualTo(ErrorCodes.VALIDATION_ERROR);
+                });
+
+        verify(jobStore, never()).createJob(any(), any(), any(), any(), any());
+        verify(quotePort, never()).submitQuote(any(), any(), any());
+    }
+
     /**
      * FUNC-003: GET returns the job for all terminal statuses (including TIMEOUT) so the bank
      * can poll. QUOTE_TIMEOUT is not thrown on the GET path — controller maps to 200 + status.

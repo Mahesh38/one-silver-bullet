@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS bank_persistence.integration_job_offer (
     offer_status        VARCHAR(20),
     error_summary       VARCHAR(500),
     raw_offer_blob_id   VARCHAR(36),
+    funds_json          TEXT,
     created_at          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 

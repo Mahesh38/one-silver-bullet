@@ -19,6 +19,7 @@ import com.bank.insurance.onesb.domain.port.outbound.JobStorePort;
 import com.bank.insurance.onesb.domain.port.outbound.OneSbQuotePort;
 import com.bank.insurance.onesb.lob.LobQuoteHandler;
 import com.bank.insurance.onesb.lob.LobQuoteHandlerRegistry;
+import com.bank.insurance.onesb.lob.life.LifeQuotePayloadFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -125,6 +126,23 @@ public class QuoteService implements QuoteUseCase {
                             "members[" + i + "].gender is required",
                             "members[" + i + "].gender"));
                 }
+            }
+        }
+        if (LifeQuotePayloadFactory.isSingleQuote(command.mode())) {
+            CreateQuoteCommand.ProductSelection selection = command.selection();
+            if (selection == null || selection.insurerCode() == null || selection.insurerCode().isBlank()) {
+                errors.add(ServiceError.ofField(
+                        ErrorCodes.MISSING_REQUIRED_FIELD,
+                        "selection.insurerCode is required for Single Quote",
+                        "selection.insurerCode"));
+            }
+            if (selection == null
+                    || selection.productCodes() == null
+                    || selection.productCodes().stream().noneMatch(c -> c != null && !c.isBlank())) {
+                errors.add(ServiceError.ofField(
+                        ErrorCodes.MISSING_REQUIRED_FIELD,
+                        "selection.productCodes is required for Single Quote",
+                        "selection.productCodes"));
             }
         }
         if (!errors.isEmpty()) {

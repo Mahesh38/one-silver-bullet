@@ -107,6 +107,8 @@ public class ProposalService implements ProposalUseCase {
             publishConsentRefMissing(command, actorId, agentId, distributorId);
         }
 
+        rejectIncompleteForm(command);
+
         LobProposalHandler handler = handlerRegistry.get(command.lob());
         String jobId = jobStore.createJob(
                 command.lob().name(),
@@ -170,6 +172,53 @@ public class ProposalService implements ProposalUseCase {
         if ((status == JobStatus.COMPLETED || status == JobStatus.PARTIAL)
                 && (job.offers() == null || job.offers().isEmpty())) {
             throw quoteExpired("Quote job has no offers: " + quoteJobId);
+        }
+    }
+
+    /**
+     * FUNC-025: do not POST a skeleton to 1SB. Empty values fail in the bank.
+     * When a schema can be loaded, missing mandatory field names are listed.
+     */
+    private void rejectIncompleteForm(SubmitProposalCommand command) {
+        if (command.values() == null || command.values().isEmpty()) {
+            throw serviceErrors.error(ErrorCodes.VALIDATION_ERROR)
+                    .component("ProposalService")
+                    .operation("submit")
+                    .reason("proposal values are required")
+                    .errors(List.of(ServiceError.ofField(
+                            ErrorCodes.MISSING_REQUIRED_FIELD,
+                            "values must include the fields from GET /v1/proposals/schema",
+                            "values")))
+                    .build();
+        }
+        if (!StringUtils.hasText(command.productCode()) || !StringUtils.hasText(command.manufacturerId())) {
+            return;
+        }
+        try {
+            ProposalSchema schema = getSchema(
+                    command.lob(), command.productCode(), command.manufacturerId(),
+                    command.version(), null);
+            List<String> missing = ProposalFormValidator.missingMandatory(schema, command.values());
+            if (!missing.isEmpty()) {
+                List<ServiceError> fieldErrors = missing.stream()
+                        .map(name -> ServiceError.ofField(
+                                ErrorCodes.MISSING_REQUIRED_FIELD,
+                                "mandatory proposal field missing: " + name,
+                                "values." + name))
+                        .toList();
+                throw serviceErrors.error(ErrorCodes.VALIDATION_ERROR)
+                        .component("ProposalService")
+                        .operation("submit")
+                        .reason("proposal form is missing " + missing.size() + " mandatory field(s)")
+                        .errors(fieldErrors)
+                        .build();
+            }
+        } catch (ServiceException ex) {
+            if (ErrorCodes.VALIDATION_ERROR.equals(ex.getErrorResponse().getCode())
+                    || ErrorCodes.MISSING_REQUIRED_FIELD.equals(ex.getErrorResponse().getCode())) {
+                throw ex;
+            }
+            // Schema fetch failed (404 / upstream) — let 1SB validate on POST.
         }
     }
 

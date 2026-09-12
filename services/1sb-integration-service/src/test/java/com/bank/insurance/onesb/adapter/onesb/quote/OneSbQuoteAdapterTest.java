@@ -492,4 +492,47 @@ class OneSbQuoteAdapterTest {
         assertThat(offer.premiumFrequency()).isEqualTo("M");
         assertThat(offer.offerStatus()).isEqualTo("AVAILABLE");
     }
+
+    @Test
+    @Tag("FUNC-026")
+    void parseOffers_fundDetails_mappedOntoQuoteOfferFunds() {
+        List<QuoteOffer> offers = adapter.parseOffers("""
+                {
+                  "data": {
+                    "isPollComplete": true,
+                    "quote": [{
+                      "insuranceAndProducts": {
+                        "insuranceCompanyCode": "BALIC",
+                        "productCode": "301",
+                        "productName": "Future Wealth Gain"
+                      },
+                      "productDetails": {
+                        "premiumPaymentFrequency": "M",
+                        "planOption": {
+                          "investmentOptions": {
+                            "fundDetails": [
+                              {"fundCode": "EQ1", "fundName": "Equity", "allocationPercent": 60},
+                              {"fundCode": "DT1", "fundName": "Debt", "allocation": 40}
+                            ]
+                          }
+                        }
+                      },
+                      "individualDetails": [{
+                        "premiumDetails": [{"mode": "M", "premiumValue": 100000}]
+                      }]
+                    }]
+                  }
+                }
+                """);
+
+        assertThat(offers).hasSize(1);
+        assertThat(offers.getFirst().funds()).hasSize(2);
+        assertThat(offers.getFirst().funds().getFirst().code()).isEqualTo("EQ1");
+        assertThat(offers.getFirst().funds().getFirst().name()).isEqualTo("Equity");
+        assertThat(offers.getFirst().funds().getFirst().allocationPercent())
+                .isEqualByComparingTo("60");
+        assertThat(offers.getFirst().funds().get(1).code()).isEqualTo("DT1");
+        assertThat(offers.getFirst().funds().get(1).allocationPercent())
+                .isEqualByComparingTo("40");
+    }
 }

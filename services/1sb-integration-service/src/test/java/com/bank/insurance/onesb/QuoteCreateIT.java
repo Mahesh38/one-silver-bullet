@@ -23,6 +23,7 @@ import java.util.UUID;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.exactly;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.matchingJsonPath;
 import static com.github.tomakehurst.wiremock.client.WireMock.patch;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
@@ -107,6 +108,74 @@ class QuoteCreateIT {
 
         ONESB.verify(exactly(1), postRequestedFor(urlEqualTo(TERM_QUOTE_PATH)));
         PERSISTENCE.verify(exactly(1), postRequestedFor(urlEqualTo("/internal/v1/jobs")));
+    }
+
+    @Test
+    @Tag("FUNC-022")
+    void singleQuote_withoutPin_returns422_andNeverCallsOneSb() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.post("/v1/quotes")
+                        .header("Idempotency-Key", "idem-sq-missing-" + UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "lob": "TERM",
+                                  "mode": "SINGLE",
+                                  "sumAssured": 5000000,
+                                  "members": [{ "dob": "1990-01-15", "gender": "M" }],
+                                  "distribution": { "agentId": "109337" }
+                                }
+                                """))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code", is(ErrorCodes.VALIDATION_ERROR)));
+
+        ONESB.verify(0, postRequestedFor(urlEqualTo(TERM_QUOTE_PATH)));
+        PERSISTENCE.verify(0, postRequestedFor(urlEqualTo("/internal/v1/jobs")));
+    }
+
+    @Test
+    @Tag("FUNC-022")
+    void singleQuote_withPin_postsTypeOfQuoteSingleQuote() throws Exception {
+        String jobId = "job-sq-" + UUID.randomUUID();
+        stubPersistenceHappyPath(jobId);
+        ONESB.stubFor(post(urlEqualTo(TERM_QUOTE_PATH))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"reqId\":\"REQ-SQ\",\"data\":{}}")));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/v1/quotes")
+                        .header("Idempotency-Key", "idem-sq-" + UUID.randomUUID())
+                        .header("X-Actor-Id", "rm-sq")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "lob": "TERM",
+                                  "mode": "SINGLE",
+                                  "journeyId": "j-sq",
+                                  "sumAssured": 5000000,
+                                  "members": [{ "dob": "1990-01-15", "gender": "M" }],
+                                  "distribution": { "agentId": "109337" },
+                                  "selection": {
+                                    "insurerCode": "BALIC",
+                                    "productCodes": ["345"],
+                                    "policyTerm": 20,
+                                    "premiumPaymentTerm": 15,
+                                    "premiumFrequency": "Y"
+                                  }
+                                }
+                                """))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.jobId", is(jobId)));
+
+        ONESB.verify(exactly(1), postRequestedFor(urlEqualTo(TERM_QUOTE_PATH))
+                .withRequestBody(matchingJsonPath("$.typeOfQuote",
+                        com.github.tomakehurst.wiremock.client.WireMock.equalTo("Single Quote")))
+                .withRequestBody(matchingJsonPath(
+                        "$.product.insuranceAndProducts[0].insuranceCompanyCode",
+                        com.github.tomakehurst.wiremock.client.WireMock.equalTo("BALIC")))
+                .withRequestBody(matchingJsonPath(
+                        "$.product.insuranceAndProducts[0].productCode[0]",
+                        com.github.tomakehurst.wiremock.client.WireMock.equalTo("345"))));
     }
 
     @Test

@@ -98,7 +98,7 @@ class MasterDataLookupIT {
     @Test
     @DisplayName("AC-1: lob=TERM + entityIds returns normalised enum lists")
     void ac1_termLookup_returnsNormalisedEnums() throws Exception {
-        WireMock.stubFor(WireMock.post(urlEqualTo("/v1/master/lookup"))
+        WireMock.stubFor(WireMock.post(urlEqualTo("/insurance/lifeterm/v1/master/lookup"))
                 .willReturn(aResponse().withStatus(200)
                         .withHeader("Content-Type", "application/json")
                         .withBody("""
@@ -129,13 +129,13 @@ class MasterDataLookupIT {
                 .andExpect(jsonPath("$.cache.hit", is(false)))
                 .andExpect(jsonPath("$.cache.stale", is(false)));
 
-        verify(exactly(1), postRequestedFor(urlEqualTo("/v1/master/lookup")));
+        verify(exactly(1), postRequestedFor(urlEqualTo("/insurance/lifeterm/v1/master/lookup")));
     }
 
     @Test
     @DisplayName("AC-2: cache hit within TTL → no 1SB call")
     void ac2_secondCall_doesNotHitOneSb() throws Exception {
-        WireMock.stubFor(WireMock.post(urlEqualTo("/v1/master/lookup"))
+        WireMock.stubFor(WireMock.post(urlEqualTo("/insurance/lifeterm/v1/master/lookup"))
                 .willReturn(aResponse().withStatus(200)
                         .withHeader("Content-Type", "application/json")
                         .withBody("""
@@ -166,13 +166,13 @@ class MasterDataLookupIT {
                 .andExpect(jsonPath("$.cache.hit", is(true)))
                 .andExpect(jsonPath("$.lookups.GENDER[0].code", is("M")));
 
-        verify(exactly(0), postRequestedFor(urlEqualTo("/v1/master/lookup")));
+        verify(exactly(0), postRequestedFor(urlEqualTo("/insurance/lifeterm/v1/master/lookup")));
     }
 
     @Test
     @DisplayName("AC-3: 1SB down + stale cache → STALE; cold → 503")
     void ac3_staleFallback_andCold503() throws Exception {
-        WireMock.stubFor(WireMock.post(urlEqualTo("/v1/master/lookup"))
+        WireMock.stubFor(WireMock.post(urlEqualTo("/insurance/lifeterm/v1/master/lookup"))
                 .willReturn(aResponse().withStatus(200)
                         .withHeader("Content-Type", "application/json")
                         .withBody("""
@@ -192,7 +192,7 @@ class MasterDataLookupIT {
 
         NOW.set(NOW.get().plusSeconds(10)); // expire TTL (4s)
 
-        WireMock.stubFor(WireMock.post(urlEqualTo("/v1/master/lookup"))
+        WireMock.stubFor(WireMock.post(urlEqualTo("/insurance/lifeterm/v1/master/lookup"))
                 .willReturn(aResponse().withStatus(503).withBody("down")));
 
         mockMvc.perform(post("/v1/master-data/lookup")
@@ -221,6 +221,33 @@ class MasterDataLookupIT {
                 .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
                 .andExpect(jsonPath("$.code", is(ErrorCodes.UPSTREAM_UNAVAILABLE)))
                 .andExpect(jsonPath("$.status", is(503)));
+    }
+
+    @Test
+    @DisplayName("FUNC-024: lob=ULIP uses lifesave master lookup")
+    @Tag("FUNC-024")
+    void ulipLookup_usesLifesavePath() throws Exception {
+        WireMock.stubFor(WireMock.post(urlEqualTo("/insurance/lifesave/v1/master/lookup"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                { "GENDER": ["M"] }
+                                """)));
+
+        mockMvc.perform(post("/v1/master-data/lookup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "lob": "ULIP",
+                                  "lookUpCategory": "quote",
+                                  "entityIds": ["GENDER"]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lookups.GENDER[0].code", is("M")));
+
+        verify(exactly(1), postRequestedFor(urlEqualTo("/insurance/lifesave/v1/master/lookup")));
+        verify(exactly(0), postRequestedFor(urlEqualTo("/v1/master/lookup")));
     }
 
     @TestConfiguration
