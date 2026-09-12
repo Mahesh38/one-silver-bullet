@@ -316,6 +316,12 @@ public class OneSbQuoteAdapter implements OneSbQuotePort {
         List<com.bank.common.domain.FundAllocation> funds = new ArrayList<>();
         collectFunds(funds, node);
         collectFunds(funds, parent);
+        if (node != null) {
+            collectFunds(funds, node.path("productDetails"));
+        }
+        if (parent != null) {
+            collectFunds(funds, parent.path("productDetails"));
+        }
         return List.copyOf(funds);
     }
 
