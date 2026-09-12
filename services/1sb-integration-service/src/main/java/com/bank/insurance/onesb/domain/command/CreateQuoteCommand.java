@@ -22,8 +22,27 @@ public record CreateQuoteCommand(
         String journeyId,
         String sessionId,
         String idempotencyKey,
-        String actorId
+        String actorId,
+        ProductSelection selection
 ) {
+    /** Compatibility constructor for callers that do not pin a Single Quote product. */
+    public CreateQuoteCommand(
+            Lob lob,
+            String mode,
+            String category,
+            BigDecimal sumAssured,
+            BigDecimal premiumAmount,
+            List<MemberDetail> members,
+            Map<String, Object> preferences,
+            DistributionContext distribution,
+            String journeyId,
+            String sessionId,
+            String idempotencyKey,
+            String actorId) {
+        this(lob, mode, category, sumAssured, premiumAmount, members, preferences, distribution,
+                journeyId, sessionId, idempotencyKey, actorId, null);
+    }
+
     public record MemberDetail(
             String role,
             int sequenceNumber,
@@ -38,5 +57,20 @@ public record CreateQuoteCommand(
             String rmEmployeeId,
             String agentId,
             String channelType
+    ) {}
+
+    /**
+     * Optional pin for Single Quote. Bank names: insurer + product codes + option ids.
+     */
+    public record ProductSelection(
+            String insurerCode,
+            List<String> productCodes,
+            String planOption,
+            String coverOption,
+            String deathBenefitOption,
+            Integer policyTerm,
+            Integer premiumPaymentTerm,
+            String premiumFrequency,
+            String premiumPaymentOption
     ) {}
 }

@@ -44,8 +44,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * QA evidence: capture bank-facing and outbound 1SB HTTP for Term / Saving / ULIP
- * quote → poll → proposal schema → proposal submit. Criteria and Single Quote are
- * asserted <em>not wired</em> (factory always emits {@code Multi-Quote}; no criteria handler).
+ * quote → poll → proposal schema → proposal submit, plus Single Quote pin and
+ * bank criteria → 1SB {@code gateCriteria}.
  * <p>
  * Does not call the live 1SB sandbox (TESTING-RULES R4). Writes JSON + markdown under
  * {@code LIFE_JOURNEY_CAPTURE_DIR} or {@code build/reports/life-journey-capture}.
@@ -112,10 +112,14 @@ class LifeLobJourneyCaptureIT {
             assertThat(report.get("mqPollWired")).isEqualTo(true);
             assertThat(report.get("getProposalWired")).isEqualTo(true);
             assertThat(report.get("submitProposalWired")).isEqualTo(true);
-            assertThat(report.get("getCriteriaWired")).isEqualTo(false);
-            assertThat(report.get("singleQuoteWired")).isEqualTo(false);
+            assertThat(report.get("getCriteriaWired")).isEqualTo(true);
+            assertThat(report.get("singleQuoteWired")).isEqualTo(true);
             JsonNode quoteReq = MAPPER.valueToTree(report.get("onesbQuoteRequest"));
             assertThat(quoteReq.path("typeOfQuote").asText()).isEqualTo("Multi-Quote");
+            JsonNode sqReq = MAPPER.valueToTree(report.get("onesbSingleQuoteRequest"));
+            assertThat(sqReq.path("typeOfQuote").asText()).isEqualTo("Single Quote");
+            assertThat(sqReq.path("product").path("insuranceAndProducts").get(0)
+                    .path("insuranceCompanyCode").asText()).isEqualTo("MFG");
         }
     }
 
@@ -134,14 +138,23 @@ class LifeLobJourneyCaptureIT {
         stubPoll(pollPath, lob);
         stubProposalSchema(proposalPath);
         stubProposalSubmit(proposalPath, lob);
-        stubCriteriaNeverCalled(lob);
+        stubCriteria(lob);
 
-        String bankQuoteReq = quoteBody(lob);
+        String bankQuoteReq = quoteBody(lob, false);
         MvcResult quoteResult = mockMvc.perform(MockMvcRequestBuilders.post("/v1/quotes")
                         .header("Idempotency-Key", "idem-" + lob + "-" + UUID.randomUUID())
                         .header("X-Actor-Id", "rm-capture")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(bankQuoteReq))
+                .andExpect(status().isAccepted())
+                .andReturn();
+
+        String bankSqReq = quoteBody(lob, true);
+        MvcResult sqResult = mockMvc.perform(MockMvcRequestBuilders.post("/v1/quotes")
+                        .header("Idempotency-Key", "idem-sq-" + lob + "-" + UUID.randomUUID())
+                        .header("X-Actor-Id", "rm-capture")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bankSqReq))
                 .andExpect(status().isAccepted())
                 .andReturn();
 
@@ -168,13 +181,15 @@ class LifeLobJourneyCaptureIT {
                         .param("lob", lob)
                         .param("productCode", "P1")
                         .param("manufacturerId", "MFG"))
+                .andExpect(status().isOk())
                 .andReturn();
 
         long criteriaHits = ONESB.getAllServeEvents().stream()
                 .filter(e -> e.getRequest().getUrl().contains("gateCriteria"))
                 .count();
 
-        Map<String, Object> onesbQuote = findServe(quotePath, "POST");
+        Map<String, Object> onesbQuote = findServe(quotePath, "POST", "Multi-Quote");
+        Map<String, Object> onesbSq = findServe(quotePath, "POST", "Single Quote");
         Map<String, Object> onesbPoll = findServe(pollPath, "GET");
         Map<String, Object> onesbSchema = findServe(proposalPath, "GET");
         Map<String, Object> onesbSubmit = findServe(proposalPath, "POST");
@@ -183,12 +198,12 @@ class LifeLobJourneyCaptureIT {
         report.put("lob", lob);
         report.put("multiQuoteWired", onesbQuote != null);
         report.put("mqPollWired", onesbPoll != null);
-        report.put("getCriteriaWired", false);
-        report.put("singleQuoteWired", false);
+        report.put("getCriteriaWired", criteriaHits > 0 && criteriaResult.getResponse().getStatus() == 200);
+        report.put("singleQuoteWired", onesbSq != null);
         report.put("singleQuoteNote",
-                "CreateQuoteRequest.mode is ignored; LifeQuotePayloadFactory always emits typeOfQuote=Multi-Quote");
+                "mode=SINGLE + selection.insurerCode/productCodes → typeOfQuote=Single Quote and insuranceAndProducts pin");
         report.put("getCriteriaNote",
-                "No bank endpoint and no LOB handler for gateCriteria (including Term)");
+                "GET /v1/quotes/criteria → LOB handler gateCriteria path");
         report.put("criteriaBankStatus", criteriaResult.getResponse().getStatus());
         report.put("criteriaOneSbHits", criteriaHits);
         report.put("getProposalWired", onesbSchema != null);
@@ -196,9 +211,13 @@ class LifeLobJourneyCaptureIT {
         report.put("bankQuoteRequest", parseJson(bankQuoteReq));
         report.put("bankQuoteResponse", parseJson(quoteResult.getResponse().getContentAsString()));
         report.put("bankQuoteHttpStatus", quoteResult.getResponse().getStatus());
+        report.put("bankSingleQuoteRequest", parseJson(bankSqReq));
+        report.put("bankSingleQuoteResponse", parseJson(sqResult.getResponse().getContentAsString()));
         report.put("onesbQuoteRequest", onesbQuote != null ? onesbQuote.get("requestBody") : null);
         report.put("onesbQuoteResponse", onesbQuote != null ? onesbQuote.get("responseBody") : null);
+        report.put("onesbSingleQuoteRequest", onesbSq != null ? onesbSq.get("requestBody") : null);
         report.put("onesbQuoteHttp", onesbQuote);
+        report.put("onesbSingleQuoteHttp", onesbSq);
         report.put("onesbPollHttp", onesbPoll);
         report.put("bankProposalSchemaResponse", parseJson(schemaResult.getResponse().getContentAsString()));
         report.put("onesbProposalSchemaHttp", onesbSchema);
@@ -212,6 +231,10 @@ class LifeLobJourneyCaptureIT {
     }
 
     private Map<String, Object> findServe(String path, String method) {
+        return findServe(path, method, null);
+    }
+
+    private Map<String, Object> findServe(String path, String method, String typeOfQuote) {
         String pathOnly = path.contains("?") ? path.substring(0, path.indexOf('?')) : path;
         for (ServeEvent event : ONESB.getAllServeEvents()) {
             LoggedRequest req = event.getRequest();
@@ -219,17 +242,25 @@ class LifeLobJourneyCaptureIT {
                 continue;
             }
             String url = req.getUrl();
-            if (url.equals(path) || url.startsWith(pathOnly)) {
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("method", method);
-                row.put("url", url);
-                row.put("requestBody", parseJson(req.getBodyAsString()));
-                row.put("responseStatus", event.getResponse().getStatus());
-                byte[] respBody = event.getResponse().getBody();
-                String resp = respBody == null ? "" : new String(respBody, StandardCharsets.UTF_8);
-                row.put("responseBody", parseJson(resp));
-                return row;
+            if (!(url.equals(path) || url.startsWith(pathOnly))) {
+                continue;
             }
+            Object body = parseJson(req.getBodyAsString());
+            if (typeOfQuote != null) {
+                if (!(body instanceof JsonNode node)
+                        || !typeOfQuote.equals(node.path("typeOfQuote").asText())) {
+                    continue;
+                }
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("method", method);
+            row.put("url", url);
+            row.put("requestBody", body);
+            row.put("responseStatus", event.getResponse().getStatus());
+            byte[] respBody = event.getResponse().getBody();
+            String resp = respBody == null ? "" : new String(respBody, StandardCharsets.UTF_8);
+            row.put("responseBody", parseJson(resp));
+            return row;
         }
         return null;
     }
@@ -298,10 +329,13 @@ class LifeLobJourneyCaptureIT {
                         .withBody("{\"applicationNumber\":\"APP-" + lob + "\",\"reqId\":\"REQ-P-" + lob + "\"}")));
     }
 
-    private static void stubCriteriaNeverCalled(String lob) {
+    private static void stubCriteria(String lob) {
         String prefix = "TERM".equals(lob) ? "/insurance/lifeterm/v1" : "/insurance/lifesave/v1";
         ONESB.stubFor(get(urlPathEqualTo(prefix + "/quote/gateCriteria"))
-                .willReturn(aResponse().withStatus(200).withBody("{\"data\":{}}")));
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"fieldGroups\":[{\"name\":\"gate\"}]}")));
     }
 
     private static void stubPersistence(String jobId, String lob) {
@@ -348,11 +382,25 @@ class LifeLobJourneyCaptureIT {
         return "TERM".equals(lob) ? "/insurance/lifeterm/v1/proposal" : "/insurance/lifesave/v1/proposal";
     }
 
-    private static String quoteBody(String lob) {
+    private static String quoteBody(String lob, boolean single) {
+        if (single) {
+            return """
+                    {
+                      "lob": "%s",
+                      "mode": "SINGLE",
+                      "category": "SUM_ASSURED",
+                      "journeyId": "j-capture",
+                      "sumAssured": 5000000,
+                      "members": [{ "dob": "1990-01-15", "gender": "M", "pincode": "400001" }],
+                      "distribution": { "agentId": "109337", "channelType": "B2B" },
+                      "selection": { "insurerCode": "MFG", "productCodes": ["P1"] }
+                    }
+                    """.formatted(lob);
+        }
         return """
                 {
                   "lob": "%s",
-                  "mode": "SINGLE",
+                  "mode": "MULTI",
                   "category": "SUM_ASSURED",
                   "journeyId": "j-capture",
                   "sumAssured": 5000000,
@@ -393,12 +441,12 @@ class LifeLobJourneyCaptureIT {
                     .append(" | ").append(flag(r.get("mqPollWired")))
                     .append(" | ").append(flag(r.get("getCriteriaWired")))
                     .append(" | ").append(flag(r.get("singleQuoteWired")))
-                    .append(" | N/A (no SQ) | ").append(flag(r.get("getProposalWired")))
+                    .append(" | N/A (same poll family) | ").append(flag(r.get("getProposalWired")))
                     .append(" | ").append(flag(r.get("submitProposalWired")))
                     .append(" |\n");
         }
-        md.append("\nBank `mode=SINGLE` still produced 1SB `typeOfQuote=Multi-Quote`.\n");
-        md.append("GET `/v1/quotes/criteria` is not an API (404). No outbound `gateCriteria` calls.\n");
+        md.append("\nBank `mode=SINGLE` with `selection` emits 1SB `typeOfQuote=Single Quote`.\n");
+        md.append("GET `/v1/quotes/criteria` is wired to 1SB `gateCriteria`.\n");
         MAPPER.writeValue(CAPTURE_DIR.resolve("index.json").toFile(), LOB_REPORTS);
         Files.writeString(CAPTURE_DIR.resolve("index.md"), md.toString());
     }

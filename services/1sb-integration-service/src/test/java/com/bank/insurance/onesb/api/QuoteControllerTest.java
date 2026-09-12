@@ -3,6 +3,7 @@ package com.bank.insurance.onesb.api;
 import com.bank.common.error.PlatformErrorAutoConfiguration;
 
 import com.bank.common.error.ErrorCodes;
+import com.bank.insurance.onesb.domain.port.inbound.EligibilityUseCase;
 import com.bank.insurance.onesb.domain.port.inbound.QuoteUseCase;
 import com.bank.insurance.onesb.domain.port.outbound.IdempotencyPort;
 import com.bank.insurance.onesb.domain.port.outbound.OneSbQuotePort;
@@ -36,6 +37,9 @@ class QuoteControllerTest {
 
     @MockBean
     private QuoteUseCase quoteUseCase;
+
+    @MockBean
+    private EligibilityUseCase eligibilityUseCase;
 
     @MockBean
     private OneSbQuotePort oneSbQuotePort;

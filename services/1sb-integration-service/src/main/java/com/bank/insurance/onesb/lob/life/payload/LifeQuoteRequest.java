@@ -65,6 +65,19 @@ public record LifeQuoteRequest(
     ) {}
 
     /**
+     * Single Quote pin. 1SB requires {@code insuranceCompanyCode} + {@code productCode[]}
+     * (not bank {@code manufacturerId}).
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record InsuranceAndProduct(
+            String insuranceCompanyCode,
+            List<String> productCode
+    ) {}
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record OptionRef(@JsonProperty("OptionSelected") String optionSelected) {}
+
+    /**
      * @param productType          1SB LOB family token ({@code LifeTerm}, {@code LifeSave}, …)
      * @param savingsProductType   Saving filters; use {@code ULIP} for ULIP quotes on the lifesave API
      * @param product              Legacy alias some Term fixtures used ({@code product.product}); prefer {@code productType}
@@ -73,14 +86,36 @@ public record LifeQuoteRequest(
     public record Product(
             String productType,
             List<String> savingsProductType,
-            String product
+            String product,
+            List<InsuranceAndProduct> insuranceAndProducts,
+            OptionRef planOption,
+            OptionRef coverOption,
+            @JsonProperty("DBPoption") OptionRef deathBenefitOption,
+            Integer policyTerm,
+            Integer premiumPaymentTerm,
+            String premiumPaymentFrequency,
+            String premiumPaymentOption
     ) {
         public static Product term(String token) {
-            return new Product(token, null, token);
+            return new Product(token, null, token, null, null, null, null, null, null, null, null);
         }
 
         public static Product saving(String token, List<String> savingsTypes) {
-            return new Product(token, savingsTypes, null);
+            return new Product(token, savingsTypes, null, null, null, null, null, null, null, null, null);
+        }
+
+        public Product withPin(
+                List<InsuranceAndProduct> pin,
+                OptionRef plan,
+                OptionRef cover,
+                OptionRef dbp,
+                Integer policyTerm,
+                Integer ppt,
+                String frequency,
+                String payOption) {
+            return new Product(
+                    productType, savingsProductType, product,
+                    pin, plan, cover, dbp, policyTerm, ppt, frequency, payOption);
         }
     }
 }

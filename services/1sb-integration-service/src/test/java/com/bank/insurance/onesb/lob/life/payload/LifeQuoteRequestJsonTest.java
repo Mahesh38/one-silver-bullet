@@ -40,4 +40,32 @@ class LifeQuoteRequestJsonTest {
         assertThat(distributor.path("salesChannel").asText()).isEqualTo("Online");
         assertThat(json.path("product").path("savingsProductType").get(0).asText()).isEqualTo("ULIP");
     }
+
+    @Test
+    @Tag("FUNC-022")
+    void productPin_serialisesInsuranceCompanyCodeNotManufacturerId() throws Exception {
+        LifeQuoteRequest request = new LifeQuoteRequest(
+                "Single Quote",
+                "Sum Assured",
+                "withoutBI",
+                "Yes",
+                new LifeQuoteRequest.AdditionalSetup("INR", "IN"),
+                new LifeQuoteRequest.Distributor("BCIBL", "109337", "B2B", "Online"),
+                new LifeQuoteRequest.PersonalInformation(List.of(
+                        new LifeQuoteRequest.IndividualDetail(
+                                "Life Assured", 1, "Male", "1990-04-12", "No",
+                                new BigDecimal("1500000"), "400001", new BigDecimal("5000000")))),
+                LifeQuoteRequest.Product.term("LifeTerm").withPin(
+                        List.of(new LifeQuoteRequest.InsuranceAndProduct("BALIC", List.of("345"))),
+                        null, null, null, 20, 15, "Y", null)
+        );
+
+        JsonNode json = mapper.readTree(mapper.writeValueAsString(request));
+        assertThat(json.path("typeOfQuote").asText()).isEqualTo("Single Quote");
+        JsonNode pin = json.path("product").path("insuranceAndProducts").get(0);
+        assertThat(pin.path("insuranceCompanyCode").asText()).isEqualTo("BALIC");
+        assertThat(pin.path("productCode").get(0).asText()).isEqualTo("345");
+        assertThat(pin.has("manufacturerId")).isFalse();
+        assertThat(json.path("product").path("policyTerm").asInt()).isEqualTo(20);
+    }
 }

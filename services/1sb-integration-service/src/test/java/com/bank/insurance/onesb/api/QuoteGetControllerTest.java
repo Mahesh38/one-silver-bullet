@@ -8,6 +8,7 @@ import com.bank.common.domain.JobStatus;
 import com.bank.common.domain.Lob;
 import com.bank.common.domain.QuoteJob;
 import com.bank.common.domain.QuoteOffer;
+import com.bank.insurance.onesb.domain.port.inbound.EligibilityUseCase;
 import com.bank.insurance.onesb.domain.port.inbound.QuoteUseCase;
 import com.bank.insurance.onesb.domain.port.outbound.IdempotencyPort;
 import com.bank.insurance.onesb.domain.port.outbound.OneSbQuotePort;
@@ -47,6 +48,9 @@ class QuoteGetControllerTest {
 
     @MockBean
     private QuoteUseCase quoteUseCase;
+
+    @MockBean
+    private EligibilityUseCase eligibilityUseCase;
 
     @MockBean
     private OneSbQuotePort oneSbQuotePort;

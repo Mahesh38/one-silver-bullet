@@ -126,6 +126,50 @@ class ProposalServiceTest {
     }
 
     @Test
+    @Tag("FUNC-025")
+    void submit_emptyValues_throwsWithoutCallingOneSb() {
+        SubmitProposalCommand command = new SubmitProposalCommand(
+                Lob.TERM, "scm-1", "off-1", "T1", "HDFC", "1",
+                Map.of(), "consent-1", "109337",
+                new SubmitProposalCommand.DistributionContext("E1", null, "B2B"),
+                "j-1", null, "idem-1", "actor-1"
+        );
+
+        assertThatThrownBy(() -> proposalService.submit(command))
+                .isInstanceOf(ServiceException.class)
+                .satisfies(ex -> assertThat(((ServiceException) ex).getErrorResponse().getCode())
+                        .isEqualTo(ErrorCodes.VALIDATION_ERROR));
+
+        verify(proposalPort, never()).submit(any(), any(), any());
+        verify(jobStore, never()).createJob(any(), any(), any(), any(), any());
+        verify(proposalPort, never()).getSchema(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @Tag("FUNC-025")
+    void submit_missingMandatoryFromSchema_throwsWithoutCallingOneSb() {
+        when(secretProvider.getDistributorId()).thenReturn("BCIBL");
+        when(handlerRegistry.get(Lob.TERM)).thenReturn(handler);
+        when(handler.schemaPath("T1", "HDFC", "1")).thenReturn("/insurance/lifeterm/v1/proposal");
+        when(proposalPort.getSchema(eq(Lob.TERM), eq("T1"), eq("HDFC"), eq("1"), any()))
+                .thenReturn(new ProposalSchema(Lob.TERM, "T1", "HDFC", "1", Map.of(
+                        "fields", List.of(Map.of("id", "proposer.panNumber", "mandatory", true),
+                                Map.of("id", "nominee.name", "mandatory", true)))));
+
+        assertThatThrownBy(() -> proposalService.submit(baseCommand("109337", null, "c-1")))
+                .isInstanceOf(ServiceException.class)
+                .satisfies(ex -> {
+                    ServiceException se = (ServiceException) ex;
+                    assertThat(se.getErrorResponse().getCode()).isEqualTo(ErrorCodes.VALIDATION_ERROR);
+                    assertThat(se.getErrorResponse().getErrors()).anyMatch(e ->
+                            e.field() != null && e.field().contains("nominee.name"));
+                });
+
+        verify(proposalPort, never()).submit(any(), any(), any());
+        verify(jobStore, never()).createJob(any(), any(), any(), any(), any());
+    }
+
+    @Test
     @Tag("FUNC-005")
     void submit_missingConsentRef_auditsWarn_andSucceeds() {
         when(secretProvider.getDistributorId()).thenReturn("BCIBL");

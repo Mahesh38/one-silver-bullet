@@ -6,6 +6,7 @@ import com.bank.common.error.ErrorCodes;
 import com.bank.common.error.ServiceException;
 import com.bank.insurance.onesb.adapter.onesb.error.OneSbErrorNormaliser;
 import com.bank.common.domain.LookupValue;
+import com.bank.common.secrets.SecretProvider;
 import com.bank.insurance.onesb.domain.port.outbound.OneSbMasterDataPort.MasterLookupResult;
 import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
@@ -31,6 +32,8 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @Tag("unit")
 @Tag("FUNC-001")
@@ -52,13 +55,16 @@ class OneSbMasterDataAdapterTest {
                 .requestFactory(factory)
                 .defaultHeaders(h -> h.setBasicAuth("test-api-key", "test-api-secret"))
                 .build();
+        SecretProvider secrets = mock(SecretProvider.class);
+        when(secrets.getDistributorId()).thenReturn("TEST_DIST");
         adapter = new OneSbMasterDataAdapter(
-                new OneSbHttpClient(restClient, new OneSbErrorNormaliser(TestErrors.ONESB), event -> {}, TestErrors.ONESB));
+                new OneSbHttpClient(restClient, new OneSbErrorNormaliser(TestErrors.ONESB), event -> {}, TestErrors.ONESB),
+                secrets);
     }
 
     @Test
     void lookup_normalisesFlatStringArrays_andSendsExpectedBody() {
-        stubFor(post(urlEqualTo("/v1/master/lookup"))
+        stubFor(post(urlEqualTo("/insurance/lifeterm/v1/master/lookup"))
                 .willReturn(aResponse().withStatus(200)
                         .withHeader("Content-Type", "application/json")
                         .withBody("""
@@ -78,19 +84,39 @@ class OneSbMasterDataAdapterTest {
                 .extracting(LookupValue::code)
                 .containsExactly("SALARIED", "SELF_EMPLOYED");
 
-        verify(exactly(1), postRequestedFor(urlEqualTo("/v1/master/lookup"))
+        verify(exactly(1), postRequestedFor(urlEqualTo("/insurance/lifeterm/v1/master/lookup"))
                 .withHeader("Authorization", containing("Basic "))
                 .withRequestBody(equalToJson("""
                         {
                           "lookUpCategory": "quote",
-                          "entityIds": ["GENDER", "OCC"]
+                          "entityIds": ["GENDER", "OCC"],
+                          "distributor": {
+                            "distributorID": "TEST_DIST",
+                            "channelType": "B2B",
+                            "salesChannel": "Online"
+                          }
                         }
                         """)));
     }
 
     @Test
+    void lookup_savingLob_usesLifesavePath() {
+        stubFor(post(urlEqualTo("/insurance/lifesave/v1/master/lookup"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                { "GENDER": ["M"] }
+                                """)));
+
+        MasterLookupResult result = adapter.lookup("ULIP", "quote", List.of("GENDER"), null);
+
+        assertThat(result.lookups().get("GENDER")).containsExactly(LookupValue.of("M"));
+        verify(exactly(1), postRequestedFor(urlEqualTo("/insurance/lifesave/v1/master/lookup")));
+    }
+
+    @Test
     void lookup_normalisesCodeLabelObjects_andDataWrapper() {
-        stubFor(post(urlEqualTo("/v1/master/lookup"))
+        stubFor(post(urlEqualTo("/insurance/lifeterm/v1/master/lookup"))
                 .willReturn(aResponse().withStatus(200)
                         .withHeader("Content-Type", "application/json")
                         .withBody("""
@@ -110,19 +136,24 @@ class OneSbMasterDataAdapterTest {
         assertThat(result.lookups().get("TITLE"))
                 .containsExactly(new LookupValue("MR", "Mr"), new LookupValue("MS", "Ms"));
 
-        verify(postRequestedFor(urlEqualTo("/v1/master/lookup"))
+        verify(postRequestedFor(urlEqualTo("/insurance/lifeterm/v1/master/lookup"))
                 .withRequestBody(equalToJson("""
                         {
                           "lookUpCategory": "proposal",
                           "entityIds": ["TITLE"],
-                          "manufacturerId": "HDFC"
+                          "manufacturerId": "HDFC",
+                          "distributor": {
+                            "distributorID": "TEST_DIST",
+                            "channelType": "B2B",
+                            "salesChannel": "Online"
+                          }
                         }
                         """)));
     }
 
     @Test
     void lookup_upstream5xx_mapsToServiceException() {
-        stubFor(post(urlEqualTo("/v1/master/lookup"))
+        stubFor(post(urlEqualTo("/insurance/lifeterm/v1/master/lookup"))
                 .willReturn(aResponse().withStatus(503).withBody("unavailable")));
 
         assertThatThrownBy(() -> adapter.lookup("TERM", "quote", List.of("GENDER"), null))

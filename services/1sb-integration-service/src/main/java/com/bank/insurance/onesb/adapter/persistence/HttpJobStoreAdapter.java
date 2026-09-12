@@ -6,11 +6,14 @@ import com.bank.insurance.onesb.adapter.persistence.dto.PersistenceApiDtos.Creat
 import com.bank.insurance.onesb.adapter.persistence.dto.PersistenceApiDtos.JobResponse;
 import com.bank.insurance.onesb.adapter.persistence.dto.PersistenceApiDtos.OfferResponse;
 import com.bank.insurance.onesb.adapter.persistence.dto.PersistenceApiDtos.PatchJobStatusRequest;
+import com.bank.common.domain.FundAllocation;
 import com.bank.common.domain.JobStatus;
 import com.bank.common.domain.Lob;
 import com.bank.common.domain.QuoteJob;
 import com.bank.common.domain.QuoteOffer;
 import com.bank.insurance.onesb.domain.port.outbound.JobStorePort;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
@@ -30,6 +33,9 @@ import java.util.Optional;
 public class HttpJobStoreAdapter implements JobStorePort {
 
     static final String POLL_TIMEOUT_REASON = "POLL_TIMEOUT";
+
+    private static final ObjectMapper FUNDS_JSON = new ObjectMapper();
+    private static final TypeReference<List<FundAllocation>> FUNDS_TYPE = new TypeReference<>() {};
 
     private final RestClient persistenceRestClient;
 
@@ -89,7 +95,8 @@ public class HttpJobStoreAdapter implements JobStorePort {
                                 offer.outOfBound(),
                                 offer.offerStatus(),
                                 offer.errorSummary(),
-                                null
+                                null,
+                                writeFundsJson(offer.funds())
                         ))
                         .retrieve()
                         .toBodilessEntity();
@@ -181,7 +188,8 @@ public class HttpJobStoreAdapter implements JobStorePort {
                         o.sumAssured(),
                         Boolean.TRUE.equals(o.outOfBound()),
                         o.offerStatus(),
-                        o.errorSummary()
+                        o.errorSummary(),
+                        parseFundsJson(o.fundsJson())
                 ))
                 .toList();
         return new QuoteJob(
@@ -196,5 +204,28 @@ public class HttpJobStoreAdapter implements JobStorePort {
                 job.completedAt(),
                 job.applicationNumber()
         );
+    }
+
+    static String writeFundsJson(List<FundAllocation> funds) {
+        if (funds == null || funds.isEmpty()) {
+            return null;
+        }
+        try {
+            return FUNDS_JSON.writeValueAsString(funds);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    static List<FundAllocation> parseFundsJson(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<FundAllocation> parsed = FUNDS_JSON.readValue(json, FUNDS_TYPE);
+            return parsed == null ? List.of() : List.copyOf(parsed);
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 }

@@ -16,5 +16,6 @@ public record OfferResponse(
         String offerStatus,
         String errorSummary,
         String rawOfferBlobId,
-        Instant createdAt
+        Instant createdAt,
+        String fundsJson
 ) {}

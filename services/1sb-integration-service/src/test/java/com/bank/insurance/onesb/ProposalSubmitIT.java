@@ -112,6 +112,31 @@ class ProposalSubmitIT {
     }
 
     @Test
+    @Tag("FUNC-025")
+    void emptyValues_returns422_andNeverCallsOneSb() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.post("/v1/proposals")
+                        .header("Idempotency-Key", "idem-empty-" + UUID.randomUUID())
+                        .header("X-Actor-Id", "rm-empty")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "lob": "TERM",
+                                  "journeyId": "j-empty",
+                                  "consentRef": "consent-empty",
+                                  "agentId": "109337",
+                                  "productCode": "T1",
+                                  "manufacturerId": "HDFC",
+                                  "values": {}
+                                }
+                                """))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code", is(ErrorCodes.VALIDATION_ERROR)));
+
+        ONESB.verify(0, postRequestedFor(urlEqualTo(TERM_PROPOSAL_PATH)));
+        PERSISTENCE.verify(0, postRequestedFor(urlEqualTo("/internal/v1/jobs")));
+    }
+
+    @Test
     void ac2_missingConsentRef_auditsWarn_andStillSubmits() throws Exception {
         String jobId = "job-ac2-" + UUID.randomUUID();
         stubPersistenceHappyPath(jobId);

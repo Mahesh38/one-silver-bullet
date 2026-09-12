@@ -112,6 +112,32 @@ class HttpJobStoreAdapterTest {
     }
 
     @Test
+    @Tag("FUNC-026")
+    void completeJob_withFunds_postsFundsJson() {
+        server.expect(requestTo(BASE + "/internal/v1/jobs/job-funds/status"))
+                .andExpect(method(HttpMethod.PATCH))
+                .andRespond(withSuccess("""
+                        {"jobId":"job-funds","status":"COMPLETED"}
+                        """, MediaType.APPLICATION_JSON));
+
+        server.expect(requestTo(BASE + "/internal/v1/jobs/job-funds/offers"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(jsonPath("$.offerId").value("offer-f"))
+                .andExpect(jsonPath("$.fundsJson").exists())
+                .andRespond(withStatus(HttpStatus.CREATED).body("""
+                        {"offerId":"offer-f","jobId":"job-funds"}
+                        """).contentType(MediaType.APPLICATION_JSON));
+
+        QuoteOffer offer = new QuoteOffer(
+                "offer-f", "BALIC", null, "301", "ULIP",
+                new BigDecimal("100000"), "M", new BigDecimal("500000"),
+                false, "AVAILABLE", null,
+                List.of(new com.bank.common.domain.FundAllocation("EQ1", "Equity", new BigDecimal("60")))
+        );
+        adapter.completeJob("job-funds", List.of(offer));
+    }
+
+    @Test
     @Tag("FUNC-002")
     void completeJob_mixedOffers_patchesPartial() {
         server.expect(requestTo(BASE + "/internal/v1/jobs/job-partial/status"))
@@ -290,5 +316,53 @@ class HttpJobStoreAdapterTest {
         assertThat(job.lob()).isEqualTo(Lob.TERM);
         assertThat(job.offers()).hasSize(1);
         assertThat(job.offers().getFirst().insurerCode()).isEqualTo("INS1");
+        assertThat(job.offers().getFirst().funds()).isEmpty();
+    }
+
+    @Test
+    @Tag("FUNC-026")
+    void findQuoteJob_mapsFundsJson() {
+        String jobId = "job-funds";
+
+        server.expect(requestTo(BASE + "/internal/v1/jobs/" + jobId))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("""
+                        {
+                          "jobId": "job-funds",
+                          "jobType": "QUOTE",
+                          "lob": "ULIP",
+                          "status": "COMPLETED",
+                          "journeyId": "j-1",
+                          "idempotencyKey": "idem-1",
+                          "createdAt": "2026-07-30T12:00:00Z",
+                          "updatedAt": "2026-07-30T12:01:00Z",
+                          "completedAt": "2026-07-30T12:01:00Z",
+                          "version": 1,
+                          "createdByActor": "actor-1"
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        server.expect(requestTo(BASE + "/internal/v1/jobs/" + jobId + "/offers"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("""
+                        [{
+                          "offerId": "offer-f",
+                          "jobId": "job-funds",
+                          "insurerCode": "BALIC",
+                          "productCode": "301",
+                          "productName": "ULIP",
+                          "premiumAmount": 100000,
+                          "offerStatus": "AVAILABLE",
+                          "fundsJson": "[{\\"code\\":\\"EQ1\\",\\"name\\":\\"Equity\\",\\"allocationPercent\\":60}]",
+                          "createdAt": "2026-07-30T12:01:00Z"
+                        }]
+                        """, MediaType.APPLICATION_JSON));
+
+        Optional<QuoteJob> result = adapter.findQuoteJob(jobId);
+        assertThat(result).isPresent();
+        assertThat(result.get().offers().getFirst().funds()).hasSize(1);
+        assertThat(result.get().offers().getFirst().funds().getFirst().code()).isEqualTo("EQ1");
+        assertThat(result.get().offers().getFirst().funds().getFirst().allocationPercent())
+                .isEqualByComparingTo("60");
     }
 }

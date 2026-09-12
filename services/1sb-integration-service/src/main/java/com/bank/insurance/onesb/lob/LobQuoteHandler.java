@@ -27,4 +27,12 @@ public interface LobQuoteHandler {
      * Term: {@code GET /insurance/lifeterm/v1/quote/poll/{reqId}}.
      */
     String pollPath(String externalReqId);
+
+    /**
+     * Relative 1SB GET path for product gate criteria, including query string.
+     * Unsupported LOBs leave this {@code null}.
+     */
+    default String criteriaPath(String productCode, String manufacturerId) {
+        return null;
+    }
 }

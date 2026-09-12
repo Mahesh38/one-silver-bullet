@@ -86,8 +86,8 @@ At least one member for Term (typically Life Assured; proposer when different).
 | `planOption` / `coverOption` / `DBPoption` | Conditionally | Single Quote when product has options | Benefit structure |
 | Riders / AddOns / ROP / newOptions | Optional | Product dependent | Benefits customization |
 
-**Multi-Quote tip:** send LOB + customer risk inputs; let 1SB resolve product set.  
-**Single Quote tip:** treat like a rated illustration for one SKU — pass full product parameters.
+**Multi-Quote tip:** send LOB + customer risk inputs; let 1SB resolve product set. Bank `mode` omitted or `MULTI` → `typeOfQuote=Multi-Quote`.  
+**Single Quote tip:** bank `mode=SINGLE` plus `selection.insurerCode` and `selection.productCodes[]` (required; 422 otherwise). Adapter maps to 1SB `insuranceAndProducts[].insuranceCompanyCode` + `productCode[]` — not `manufacturerId`.
 
 ---
 

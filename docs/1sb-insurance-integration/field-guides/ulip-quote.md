@@ -28,18 +28,14 @@ Same envelope as [savings-quote.md](./savings-quote.md). Handler sets:
 
 ## Supplementary APIs (not the quote submit)
 
-| API | Use |
-|-----|-----|
-| ULIP list | Applicable funds for plan / allocation UX |
-| ULIP performance | Fund performance data for disclosure |
+| API | Use on demo |
+|-----|-------------|
+| ULIP list (`…/quote/ulipList`) | ALB stub — **not** a fund list |
+| ULIP performance | Guessed paths 404 — **not** a real demo API |
 
-Do **not** invent a second quote base path or a second LOB handler for 1SB. Bank `lob=ULIP` still routes through `UlipQuoteHandler`, which is the same Saving quote call with the ULIP filter.
+Do **not** invent a second quote base path, a `/lifeulip` prefix, or a bank `/ulip/list` that pretends to be 1SB.
 
-Live demo notes (2026-09-11):
-
-- `POST /insurance/lifesave/v1/quote/ulipList` returns an ALB stub (`{"status":" returned from ALB (AWS) "}`), not a fund list.
-- Guessed `/ulip/list` and `/ulip/performance` paths 404 on demo.
-- Funds **do** appear on the Saving quote poll under `productDetails.planOption.investmentOptions.fundDetails`.
+Funds **do** appear on the Saving quote poll under `productDetails.planOption.investmentOptions.fundDetails`. The adapter maps those rows onto bank `QuoteOffer.funds` (`FUNC-026`). GET `/v1/quotes/{jobId}` returns them after poll completes.
 
 ## Mapping notes
 

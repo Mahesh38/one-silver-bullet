@@ -6,7 +6,16 @@ Cross-LOB utilities. Portal hub: [Building blocks](https://docs.1silverbullet.te
 
 ## Master Lookup
 
-**Path:** `POST /v1/master/lookup`
+Working demo paths (2026-09-11):
+
+| LOB | Path |
+|-----|------|
+| Term (default) | `POST /insurance/lifeterm/v1/master/lookup` |
+| Saving / ULIP | `POST /insurance/lifesave/v1/master/lookup` |
+
+`POST /v1/master/lookup` 404s on demo — do not use it. There is no `/insurance/lifeulip/…/master/lookup`.
+
+Bank API remains `POST /v1/master-data/lookup` (`lob` selects the 1SB path). Request body includes `lookUpCategory`, `entityIds[]`, optional `manufacturerId`, and distributor (`distributorID`, `channelType`, `salesChannel`).
 
 | Field | Required | Why |
 |-------|----------|-----|

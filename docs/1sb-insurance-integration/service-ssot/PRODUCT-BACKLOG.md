@@ -290,6 +290,21 @@ All runtime stories below are for **this service only**. The final **Governance 
 #### QA-012 · Life LOB regression suite
 **Type:** QA · **Priority:** P0† · **AC:** Term + Savings + ULIP WireMock (or sandbox) paths green; CB open/half-open cases covered; evidence attached before EPIC-002 Done.
 
+#### FUNC-022 · Honor bank `mode=SINGLE`
+**Type:** FUNC · **Priority:** P0† · **AC:** `mode=SINGLE` emits 1SB `typeOfQuote=Single Quote` with `insuranceAndProducts[]` pin (`insuranceCompanyCode` + `productCode[]`); missing pin → 422, no upstream call.
+
+#### FUNC-023 · Bank criteria API / `gateCriteria`
+**Type:** FUNC · **Priority:** P0† · **AC:** `GET/POST /v1/quotes/criteria` maps to LOB `gateCriteria`; literal `/criteria` wins over `/{jobId}`; POST requires `Idempotency-Key`.
+
+#### FUNC-024 · Master lookup LOB paths
+**Type:** FUNC · **Priority:** P0† · **AC:** Adapter calls `/insurance/lifeterm|lifesave/v1/master/lookup` (not demo-404 `/v1/master/lookup`); ULIP uses lifesave; body includes distributor.
+
+#### FUNC-025 · Proposal submit form validation
+**Type:** FUNC · **Priority:** P0† · **AC:** Empty `values` → 422 and zero 1SB POST; when schema GET works, missing mandatory fields are listed; schema GET failure does not invent a block.
+
+#### FUNC-026 · ULIP funds from quote poll
+**Type:** FUNC · **Priority:** P0† · **AC:** Fund rows on `QuoteOffer.funds` from poll `fundDetails`; no invented `/ulip/list` or `/ulip/performance` as real demo APIs.
+
 ---
 
 ## P2 backlog

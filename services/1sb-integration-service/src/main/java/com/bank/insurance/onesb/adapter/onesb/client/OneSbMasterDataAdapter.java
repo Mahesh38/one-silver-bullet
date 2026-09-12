@@ -1,26 +1,32 @@
 package com.bank.insurance.onesb.adapter.onesb.client;
 
 import com.bank.common.domain.LookupValue;
+import com.bank.common.secrets.SecretProvider;
 import com.bank.insurance.onesb.domain.port.outbound.OneSbMasterDataPort;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
- * Calls 1SB {@code POST /v1/master/lookup} and normalises enum payloads to code/label pairs.
+ * Calls 1SB LOB master lookup ({@code POST /insurance/lifeterm|lifesave/v1/master/lookup}).
+ * Demo {@code POST /v1/master/lookup} is 404 — do not use that path.
  */
 @Component
 public class OneSbMasterDataAdapter implements OneSbMasterDataPort {
 
-    private static final String PATH = "/v1/master/lookup";
+    static final String TERM_PATH = "/insurance/lifeterm/v1/master/lookup";
+    static final String SAVE_PATH = "/insurance/lifesave/v1/master/lookup";
 
     private final OneSbHttpClient httpClient;
+    private final SecretProvider secretProvider;
 
-    public OneSbMasterDataAdapter(OneSbHttpClient httpClient) {
+    public OneSbMasterDataAdapter(OneSbHttpClient httpClient, SecretProvider secretProvider) {
         this.httpClient = httpClient;
+        this.secretProvider = secretProvider;
     }
 
     @Override
@@ -30,16 +36,27 @@ public class OneSbMasterDataAdapter implements OneSbMasterDataPort {
             String lookUpCategory,
             List<String> entityIds,
             String manufacturerId) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("lookUpCategory", lookUpCategory);
-        body.put("entityIds", entityIds);
-        if (manufacturerId != null && !manufacturerId.isBlank()) {
-            body.put("manufacturerId", manufacturerId);
-        }
+        OneSbMasterLookupRequest body = new OneSbMasterLookupRequest(
+                lookUpCategory,
+                entityIds,
+                manufacturerId == null || manufacturerId.isBlank() ? null : manufacturerId,
+                new OneSbMasterLookupRequest.Distributor(
+                        secretProvider.getDistributorId(), "B2B", "Online")
+        );
 
-        Map<String, Object> raw = httpClient.post(PATH, body, Map.class);
+        Map<String, Object> raw = httpClient.post(lookupPath(lob), body, Map.class);
         Map<String, List<LookupValue>> normalised = normalise(raw, entityIds);
         return new MasterLookupResult(normalised);
+    }
+
+    static String lookupPath(String lob) {
+        if (lob == null || lob.isBlank()) {
+            return TERM_PATH;
+        }
+        return switch (lob.trim().toUpperCase(Locale.ROOT)) {
+            case "SAVING", "ULIP" -> SAVE_PATH;
+            default -> TERM_PATH;
+        };
     }
 
     /**
@@ -83,7 +100,6 @@ public class OneSbMasterDataAdapter implements OneSbMasterDataPort {
             return List.copyOf(result);
         }
         if (value instanceof Map<?, ?> map && !map.isEmpty() && looksLikeCodeLabelMap(map)) {
-            // Single {code,label} object
             LookupValue lv = toLookupValue(map);
             return lv != null ? List.of(lv) : List.of();
         }

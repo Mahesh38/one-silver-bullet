@@ -307,8 +307,47 @@ public class OneSbQuoteAdapter implements OneSbQuotePort {
                 sumAssured,
                 oob,
                 offerStatus,
-                errorSummary
+                errorSummary,
+                extractFunds(node, parent)
         );
+    }
+
+    static List<com.bank.common.domain.FundAllocation> extractFunds(JsonNode node, JsonNode parent) {
+        List<com.bank.common.domain.FundAllocation> funds = new ArrayList<>();
+        collectFunds(funds, node);
+        collectFunds(funds, parent);
+        if (node != null) {
+            collectFunds(funds, node.path("productDetails"));
+        }
+        if (parent != null) {
+            collectFunds(funds, parent.path("productDetails"));
+        }
+        return List.copyOf(funds);
+    }
+
+    private static void collectFunds(List<com.bank.common.domain.FundAllocation> funds, JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return;
+        }
+        JsonNode fundDetails = node.path("planOption").path("investmentOptions").path("fundDetails");
+        if (fundDetails.isMissingNode() || fundDetails.isNull()) {
+            fundDetails = node.path("investmentOptions").path("fundDetails");
+        }
+        if (fundDetails.isMissingNode() || fundDetails.isNull()) {
+            fundDetails = node.path("fundDetails");
+        }
+        if (!fundDetails.isArray()) {
+            return;
+        }
+        for (JsonNode fund : fundDetails) {
+            String code = text(fund, "fundCode", "code", "fundId");
+            String name = text(fund, "fundName", "name");
+            if (code == null && name == null) {
+                continue;
+            }
+            funds.add(new com.bank.common.domain.FundAllocation(
+                    code, name, decimal(fund, "allocationPercent", "allocation", "fundAllocation")));
+        }
     }
 
     private static BigDecimal nestedPremium(JsonNode node) {

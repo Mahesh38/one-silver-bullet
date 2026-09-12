@@ -86,6 +86,36 @@ stories:
     notes: "LifeLobRegressionIT covers Term non-regression, Saving/ULIP quote+proposal WireMock paths, schema GET, unsupported HEALTH. QuoteService admits TERM/SAVING/ULIP. CB: OneSbCircuitBreakerTest plus OneSbHttpClientTest 422-does-not-open / 5xx-opens."
     priority_now: P1
     priority_at_target: P1
+  - id: FUNC-022
+    title: "Honor bank mode=SINGLE (typeOfQuote + insuranceAndProducts pin)"
+    state: DONE
+    notes: "LifeQuotePayloadFactory.resolveTypeOfQuote; QuoteService 422 without selection.insurerCode/productCodes; 1SB pin uses insuranceCompanyCode not manufacturerId."
+    priority_now: P1
+    priority_at_target: P1
+  - id: FUNC-023
+    title: "Bank criteria API and 1SB gateCriteria handler"
+    state: DONE
+    notes: "GET/POST /v1/quotes/criteria; literal /criteria wins over /{jobId}; POST requires Idempotency-Key; LOB handlers supply quoteSubmitPath/gateCriteria."
+    priority_now: P1
+    priority_at_target: P1
+  - id: FUNC-024
+    title: "Master lookup uses LOB paths /insurance/lifeterm|lifesave/v1/master/lookup"
+    state: DONE
+    notes: "Demo POST /v1/master/lookup is 404. Adapter sends distributor from SecretProvider. Do not invent /lifeulip lookup."
+    priority_now: P1
+    priority_at_target: P1
+  - id: FUNC-025
+    title: "Proposal POST bank-side form validation"
+    state: DONE
+    notes: "Empty values → 422 and no 1SB POST. When schema GET succeeds, missing mandatory fields listed (cap 20). Schema GET failure does not block POST (1SB remains source of truth for the full dynamic form)."
+    priority_now: P1
+    priority_at_target: P1
+  - id: FUNC-026
+    title: "ULIP funds from quote poll (no invented list/performance APIs)"
+    state: DONE
+    notes: "QuoteOffer.funds from planOption.investmentOptions.fundDetails; persisted as funds_json. Demo ulipList is an ALB stub — do not expose as a real fund API."
+    priority_now: P1
+    priority_at_target: P1
 
 story_order:
   - DOC-020
@@ -96,6 +126,11 @@ story_order:
   - FUNC-015
   - FUNC-019
   - QA-012
+  - FUNC-022
+  - FUNC-023
+  - FUNC-024
+  - FUNC-025
+  - FUNC-026
 
 dependencies:
   blocked_by: []
@@ -107,11 +142,12 @@ risks: []
 assumptions: []
 
 progress:
-  stories_total: 8
-  stories_done: 8
+  stories_total: 13
+  stories_done: 13
   completion_definition_met: true
   evidence:
-    - "LifeLobRegressionIT + unit handler tests green on 1sb-integration-service"
+    - "LifeLobRegressionIT + QuoteCreateIT SINGLE + QuoteCriteriaIT + MasterDataLookupIT LOB paths + ProposalSubmitIT empty values + fundDetails parse; unit handler tests green on 1sb-integration-service"
+    - "Live demo sandbox auth was not claimed recovered; GATE-P4 4.1 remains open"
     - "Human T4 on CR-014 still outstanding (not agent-satisfiable)"
 
 priority_now: P1

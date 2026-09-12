@@ -51,6 +51,8 @@ class SavingQuoteHandlerTest {
         assertThat(payload.distributor().distributorID()).isEqualTo("TEST_DIST");
         assertThat(payload.product().savingsProductType()).containsExactly("ULIP");
         assertThat(payload.distributor().salesChannel()).isEqualTo("Online");
+        assertThat(handler.criteriaPath("301", "BALIC"))
+                .isEqualTo("/insurance/lifesave/v1/quote/gateCriteria?productId=301&manufacturerId=BALIC");
     }
 
     @Test

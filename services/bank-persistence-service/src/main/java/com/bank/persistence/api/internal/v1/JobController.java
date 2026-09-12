@@ -131,6 +131,7 @@ public class JobController {
         entity.setOfferStatus(request.offerStatus());
         entity.setErrorSummary(request.errorSummary());
         entity.setRawOfferBlobId(request.rawOfferBlobId());
+        entity.setFundsJson(request.fundsJson());
         entity.setCreatedAt(now);
 
         IntegrationJobOfferEntity saved = offerRepository.save(entity);
@@ -205,7 +206,8 @@ public class JobController {
                 e.getOfferStatus(),
                 e.getErrorSummary(),
                 e.getRawOfferBlobId(),
-                e.getCreatedAt()
+                e.getCreatedAt(),
+                e.getFundsJson()
         );
     }
 

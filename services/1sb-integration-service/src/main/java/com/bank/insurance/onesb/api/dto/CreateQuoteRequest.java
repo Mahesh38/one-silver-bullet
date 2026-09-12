@@ -22,7 +22,8 @@ public record CreateQuoteRequest(
         Map<String, Object> preferences,
         DistributionRequest distribution,
         String journeyId,
-        String sessionId
+        String sessionId,
+        ProductSelectionRequest selection
 ) {
     public record MemberRequest(
             String role,
@@ -38,5 +39,20 @@ public record CreateQuoteRequest(
             String rmEmployeeId,
             String agentId,
             String channelType
+    ) {}
+
+    /**
+     * Single Quote pin. Required when {@code mode} is SINGLE.
+     */
+    public record ProductSelectionRequest(
+            String insurerCode,
+            List<String> productCodes,
+            String planOption,
+            String coverOption,
+            String deathBenefitOption,
+            Integer policyTerm,
+            Integer premiumPaymentTerm,
+            String premiumFrequency,
+            String premiumPaymentOption
     ) {}
 }

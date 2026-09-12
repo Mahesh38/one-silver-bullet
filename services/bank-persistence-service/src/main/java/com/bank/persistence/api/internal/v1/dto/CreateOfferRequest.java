@@ -15,5 +15,6 @@ public record CreateOfferRequest(
         Boolean outOfBound,
         String offerStatus,
         String errorSummary,
-        String rawOfferBlobId
+        String rawOfferBlobId,
+        String fundsJson
 ) {}

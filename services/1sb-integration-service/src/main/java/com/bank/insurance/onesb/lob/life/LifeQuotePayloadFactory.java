@@ -3,16 +3,21 @@ package com.bank.insurance.onesb.lob.life;
 import com.bank.common.secrets.SecretProvider;
 import com.bank.insurance.onesb.domain.command.CreateQuoteCommand;
 import com.bank.insurance.onesb.lob.life.payload.LifeQuoteRequest;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Shared mapping from bank {@link CreateQuoteCommand} to typed {@link LifeQuoteRequest}.
  * LOB handlers supply product family token, optional savings filters, and 1SB paths (DRY).
  */
 public final class LifeQuotePayloadFactory {
+
+    public static final String TYPE_MULTI = "Multi-Quote";
+    public static final String TYPE_SINGLE = "Single Quote";
 
     private LifeQuotePayloadFactory() {}
 
@@ -40,7 +45,7 @@ public final class LifeQuotePayloadFactory {
             seq++;
         }
         return new LifeQuoteRequest(
-                "Multi-Quote",
+                resolveTypeOfQuote(command.mode()),
                 quoteCategory,
                 "withoutBI",
                 "Yes",
@@ -52,8 +57,52 @@ public final class LifeQuotePayloadFactory {
                         "Online"
                 ),
                 new LifeQuoteRequest.PersonalInformation(List.copyOf(individuals)),
-                product
+                applyPin(product, command.selection())
         );
+    }
+
+    public static String resolveTypeOfQuote(String mode) {
+        if (!StringUtils.hasText(mode)) {
+            return TYPE_MULTI;
+        }
+        String normalised = mode.trim().toUpperCase(Locale.ROOT)
+                .replace('-', '_')
+                .replace(' ', '_');
+        return switch (normalised) {
+            case "SINGLE", "SINGLE_QUOTE", "SQ" -> TYPE_SINGLE;
+            default -> TYPE_MULTI;
+        };
+    }
+
+    public static boolean isSingleQuote(String mode) {
+        return TYPE_SINGLE.equals(resolveTypeOfQuote(mode));
+    }
+
+    private static LifeQuoteRequest.Product applyPin(
+            LifeQuoteRequest.Product product,
+            CreateQuoteCommand.ProductSelection selection) {
+        if (selection == null || !StringUtils.hasText(selection.insurerCode())) {
+            return product;
+        }
+        List<String> codes = selection.productCodes() == null
+                ? List.of()
+                : selection.productCodes().stream().filter(StringUtils::hasText).toList();
+        List<LifeQuoteRequest.InsuranceAndProduct> pin = List.of(
+                new LifeQuoteRequest.InsuranceAndProduct(selection.insurerCode().trim(), codes));
+        return product.withPin(
+                pin,
+                option(selection.planOption()),
+                option(selection.coverOption()),
+                option(selection.deathBenefitOption()),
+                selection.policyTerm(),
+                selection.premiumPaymentTerm(),
+                blankToNull(selection.premiumFrequency()),
+                blankToNull(selection.premiumPaymentOption())
+        );
+    }
+
+    private static LifeQuoteRequest.OptionRef option(String value) {
+        return StringUtils.hasText(value) ? new LifeQuoteRequest.OptionRef(value.trim()) : null;
     }
 
     private static String resolveQuoteCategory(CreateQuoteCommand command) {

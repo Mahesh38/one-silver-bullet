@@ -70,4 +70,11 @@ Leave medical / ACR / product-specific declarations to user/RM capture.
 
 ## Gate criteria forms
 
-Same dynamic philosophy for eligibility (`gateCriteria` GET/POST) on Term/Saving/Annuity/Pension. Treat as a lighter proposal schema before quoting or before product lock-in (confirm sequencing with 1SB for each LOB).
+Same dynamic philosophy for eligibility (`gateCriteria` GET/POST) on Term/Saving.
+
+Bank API (`FUNC-023`):
+
+- `GET /v1/quotes/criteria?lob=&productCode=&manufacturerId=`
+- `POST /v1/quotes/criteria` (requires `Idempotency-Key`)
+
+Handlers call `{quoteSubmitPath}/gateCriteria?productId=&manufacturerId=`. Treat as a lighter proposal schema before quoting or before product lock-in (confirm sequencing with 1SB for each LOB).
